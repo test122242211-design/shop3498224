@@ -37,7 +37,9 @@ The bot intentionally refuses to issue a code when SellAuth returns an error. It
 3. Invite it with scopes `bot` and `applications.commands`.
 4. Bot permissions needed: Manage Channels, View Channels, Send Messages, Read Message History, Embed Links, Attach Files, Use Application Commands.
 5. Create a ticket category and staff role.
-6. Use Discord channel `1567845414160433172` as the staff approval/decline log channel, or set `STAFF_LOG_CHANNEL_ID` in Render to override it.
+6. Use Discord channel `1567839064848080906` for the public ticket-opening panel (`TICKET_PANEL_CHANNEL_ID`).
+7. Use Discord channel `1567845414160433172` as the staff approval/decline log channel (`STAFF_LOG_CHANNEL_ID`).
+8. Run `/setup` to post the ticket panel in the configured panel channel.
 
 ## Environment variables
 
