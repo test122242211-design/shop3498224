@@ -60,12 +60,27 @@ const stmts = {
   allOpen: db.prepare("SELECT * FROM tickets WHERE status NOT IN ('closed','approved','declined','auto_approved')")
 };
 
+function updateTicket(x) {
+  return stmts.update.run({
+    id: x.id,
+    status: x.status ?? null,
+    product: x.product ?? null,
+    invoice_id: x.invoice_id ?? null,
+    proof_json: x.proof_json ?? null,
+    staff_message_id: x.staff_message_id ?? null,
+    deadline_at: x.deadline_at ?? null,
+    decided_at: x.decided_at ?? null,
+    decision_by: x.decision_by ?? null,
+    coupon_code: x.coupon_code ?? null
+  });
+}
+
 module.exports = {
   db,
   createTicket: (x) => stmts.createTicket.run(x),
   getTicket: (id) => stmts.getTicket.get(id),
   getByChannel: (id) => stmts.getByChannel.get(id),
-  updateTicket: (x) => stmts.update.run(x),
+  updateTicket,
   addMessage: (ticketId, role, content) => stmts.addMessage.run(ticketId, role, content, Date.now()),
   getHistory: (ticketId, limit) => stmts.history.all(ticketId, limit).reverse(),
   getPending: () => stmts.pending.all(),
