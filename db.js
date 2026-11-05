@@ -28,6 +28,9 @@ const ready = pool.query(`
   );
   CREATE INDEX IF NOT EXISTS messages_ticket_id_id_idx ON messages(ticket_id, id);
   CREATE INDEX IF NOT EXISTS tickets_pending_idx ON tickets(status, deadline_at);
+  CREATE TABLE IF NOT EXISTS replacement_blacklist (
+    user_id TEXT PRIMARY KEY, reason TEXT, added_by TEXT NOT NULL, created_at BIGINT NOT NULL
+  );
 `).catch(err => { console.error("PostgreSQL initialization failed:", err); throw err; });
 
 async function query(sql, values = []) {
@@ -57,6 +60,22 @@ module.exports = {
     "SELECT role,content FROM (SELECT id,role,content FROM messages WHERE ticket_id=$1 ORDER BY id DESC LIMIT $2) recent ORDER BY id ASC",
     [ticketId,limit])).rows,
   getPending: async () => (await query("SELECT * FROM tickets WHERE status='awaiting_staff' AND deadline_at IS NOT NULL")).rows,
+  hasOpenNetflixReplacement: async userId => (await query(
+    `SELECT EXISTS (
+      SELECT 1 FROM tickets
+      WHERE user_id=$1 AND kind='replacement'
+        AND status NOT IN ('closed','approved','declined','auto_approved','blacklisted')
+        AND (product='netflix' OR (product IS NULL AND status='choose_product'))
+    ) AS found`, [userId])).rows[0].found,
+  getBlacklist: async userId => (await query(
+    "SELECT user_id,reason,added_by,created_at FROM replacement_blacklist WHERE user_id=$1", [userId])).rows[0],
+  addBlacklist: async (userId,reason,addedBy) => query(
+    `INSERT INTO replacement_blacklist(user_id,reason,added_by,created_at)
+     VALUES($1,$2,$3,$4)
+     ON CONFLICT(user_id) DO UPDATE SET reason=EXCLUDED.reason, added_by=EXCLUDED.added_by, created_at=EXCLUDED.created_at`,
+    [userId,reason,addedBy,Date.now()]),
+  removeBlacklist: async userId => query(
+    "DELETE FROM replacement_blacklist WHERE user_id=$1", [userId]),
   getOpenTickets: async () => (await query(
     "SELECT * FROM tickets WHERE status NOT IN ('closed','approved','declined','auto_approved')")).rows
 };
