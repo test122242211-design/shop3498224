@@ -1,11 +1,12 @@
 const {
   Client, GatewayIntentBits, Partials, ChannelType, PermissionFlagsBits,
   ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder,
-  EmbedBuilder, Events
+  EmbedBuilder, Events, REST, Routes
 } = require("discord.js");
 const express = require("express");
 const crypto = require("node:crypto");
 const config = require("./config");
+const commands = require("./commands");
 const store = require("./db");
 const { generateReply } = require("./ai");
 const { verifyInvoice, createNetflixCoupon } = require("./sellauth");
@@ -333,8 +334,20 @@ async function autoApprove(ticket) {
   }
 }
 
-client.once(Events.ClientReady, readyClient => {
+client.once(Events.ClientReady, async readyClient => {
   console.log(`Logged in as ${readyClient.user.tag}`);
+  try {
+    const rest = new REST({ version: "10" }).setToken(config.discordToken);
+    const route = config.guildId
+      ? Routes.applicationGuildCommands(config.clientId, config.guildId)
+      : Routes.applicationCommands(config.clientId);
+    await rest.put(route, { body: commands });
+    console.log(config.guildId
+      ? `Registered slash commands in guild ${config.guildId}`
+      : "Registered global slash commands (Discord may take time to show them).");
+  } catch (err) {
+    console.error("Slash command registration failed:", err);
+  }
   setInterval(async () => {
     for (const ticket of store.getPending()) await autoApprove(ticket);
   }, 15_000).unref();
