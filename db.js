@@ -48,9 +48,40 @@ async function updateTicket(x) {
 }
 module.exports = {
   ready,
-  createTicket: async x => query(`INSERT INTO tickets
-    (id,guild_id,channel_id,user_id,kind,product,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-    [x.id,x.guild_id,x.channel_id,x.user_id,x.kind,x.product,x.status,x.created_at]),
+  createTicket: async x => {
+    const values = [x.id,x.guild_id,x.channel_id,x.user_id,x.kind,x.product,x.status,x.created_at];
+    const insertSql = `INSERT INTO tickets
+      (id,guild_id,channel_id,user_id,kind,product,status,created_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`;
+    if (x.kind !== "replacement") return query(insertSql, values);
+
+    // Serialize replacement-ticket creation per user so two rapid button clicks
+    // cannot create two active Netflix replacement tickets at the same time.
+    await ready;
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      await client.query("SELECT pg_advisory_xact_lock(hashtext($1))", [x.user_id]);
+      const existing = await client.query(
+        `SELECT EXISTS (
+          SELECT 1 FROM tickets
+          WHERE user_id=$1 AND kind='replacement'
+            AND status NOT IN ('closed','approved','declined','auto_approved','blacklisted')
+            AND (product='netflix' OR (product IS NULL AND status='choose_product'))
+        ) AS found`, [x.user_id]);
+      if (existing.rows[0].found) {
+        await client.query("ROLLBACK");
+        return false;
+      }
+      await client.query(insertSql, values);
+      await client.query("COMMIT");
+      return true;
+    } catch (err) {
+      await client.query("ROLLBACK").catch(() => {});
+      throw err;
+    } finally {
+      client.release();
+    }
+  },
   getTicket: async id => (await query("SELECT * FROM tickets WHERE id=$1",[id])).rows[0],
   getByChannel: async id => (await query("SELECT * FROM tickets WHERE channel_id=$1",[id])).rows[0],
   updateTicket,
