@@ -4,7 +4,7 @@ Discord support/replacement bot using:
 - discord.js v14
 - OpenRouter for natural-language replies
 - SellAuth API adapter for invoice lookup and coupon creation
-- SQLite for ticket state and review deadlines
+- Neon PostgreSQL for persistent ticket state and review deadlines
 - Express health endpoint for Render
 
 ## Important SellAuth setup
@@ -89,7 +89,7 @@ Create a **Web Service** (not a Background Worker) connected to your repository.
 - Health check path: `/health`
 - Render automatically provides `PORT`; the app listens on `0.0.0.0:$PORT`.
 
-Set all `.env.example` variables in Render's Environment dashboard. Do not commit `.env`.
+Set the required `.env.example` variables in Render's Environment dashboard, including `DATABASE_URL`. Do not commit `.env`.
 
 ### PING_URL
 
@@ -97,14 +97,9 @@ The bot requests its health endpoint every 60 seconds. By default it uses Render
 
 ## Data persistence warning
 
-SQLite is stored at `DATABASE_PATH`. Render's ordinary service filesystem is ephemeral, so ticket state is lost on restart/redeploy unless you attach persistent storage. To keep existing ticket records across restarts:
+Ticket data is stored in a hosted Neon PostgreSQL database, not on Render's filesystem. Render can restart or redeploy without losing ticket records, message history, or approval deadlines. Create a free project at https://neon.tech, copy its PostgreSQL connection string, and set it as `DATABASE_URL` in the Render service's Environment dashboard. No Render Persistent Disk is needed.
 
-1. In the Render service, add a **Persistent Disk** (available on supported paid services).
-2. Set its mount path to `/var/data`.
-3. In Render Environment, set `DATABASE_PATH=/var/data/ogshop.sqlite`.
-4. Save and redeploy.
-
-The bot creates the database file in that mounted folder automatically. Important: attaching a disk does not restore ticket data already lost from an earlier ephemeral filesystem; old Discord ticket channels may need to be reopened or re-created in the database. A persistent database is necessary for ticket history and approval timers to survive restarts.
+The database tables and indexes are created automatically on startup. Existing records in an old local SQLite file are not automatically copied; export/import them before switching if you need historical tickets.
 
 ## Safety / operational notes
 
