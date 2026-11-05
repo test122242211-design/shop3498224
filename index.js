@@ -93,11 +93,15 @@ async function createTicketChannel(interaction, kind) {
     topic: `OGSHOP ${kind} ticket for ${interaction.user.tag} (${interaction.user.id})`
   });
   const id = crypto.randomUUID();
-  await store.createTicket({
+  const saved = await store.createTicket({
     id, guild_id: guild.id, channel_id: channel.id, user_id: interaction.user.id,
     kind, product: null, status: kind === "question" ? "question" : "choose_product",
     created_at: Date.now()
   });
+  if (saved === false) {
+    await channel.delete("User already has an open Netflix replacement ticket").catch(() => {});
+    throw new Error("OPEN_NETFLIX_TICKET_EXISTS");
+  }
   return { channel, id };
 }
 
@@ -502,7 +506,16 @@ client.on(Events.InteractionCreate, async interaction => {
         if (kind === "replacement" && await store.hasOpenNetflixReplacement(interaction.user.id)) {
           return interaction.editReply("You already have an open Netflix replacement ticket. Please continue in that ticket or close it before opening another one.");
         }
-        const { channel, id } = await createTicketChannel(interaction, kind);
+        let created;
+        try {
+          created = await createTicketChannel(interaction, kind);
+        } catch (err) {
+          if (err.message === "OPEN_NETFLIX_TICKET_EXISTS") {
+            return interaction.editReply("You already have an open Netflix replacement ticket. Please continue in that ticket or close it before opening another one.");
+          }
+          throw err;
+        }
+        const { channel, id } = created;
         await interaction.editReply(`Your ticket has been created: ${channel}`);
         if (kind === "question") {
           await channel.send(`Hello <@${interaction.user.id}>! I'm OGSHOP's AI support assistant. Tell me what you need help with. A staff member can join if needed.`);
