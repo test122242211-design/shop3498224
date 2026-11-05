@@ -18,8 +18,10 @@ const ready = pool.query(`
     id TEXT PRIMARY KEY, guild_id TEXT NOT NULL, channel_id TEXT NOT NULL UNIQUE,
     user_id TEXT NOT NULL, kind TEXT NOT NULL, product TEXT, status TEXT NOT NULL,
     invoice_id TEXT, proof_json TEXT, staff_message_id TEXT, created_at BIGINT NOT NULL,
-    deadline_at BIGINT, decided_at BIGINT, decision_by TEXT, coupon_code TEXT
+    deadline_at BIGINT, decided_at BIGINT, decision_by TEXT, coupon_code TEXT,
+    ai_muted BOOLEAN NOT NULL DEFAULT FALSE
   );
+  ALTER TABLE tickets ADD COLUMN IF NOT EXISTS ai_muted BOOLEAN NOT NULL DEFAULT FALSE;
   CREATE TABLE IF NOT EXISTS messages (
     id BIGSERIAL PRIMARY KEY, ticket_id TEXT NOT NULL REFERENCES tickets(id),
     role TEXT NOT NULL, content TEXT NOT NULL, created_at BIGINT NOT NULL
@@ -37,9 +39,9 @@ async function updateTicket(x) {
     invoice_id=COALESCE($4,invoice_id), proof_json=COALESCE($5,proof_json),
     staff_message_id=COALESCE($6,staff_message_id), deadline_at=COALESCE($7,deadline_at),
     decided_at=COALESCE($8,decided_at), decision_by=COALESCE($9,decision_by),
-    coupon_code=COALESCE($10,coupon_code) WHERE id=$1`,
+    coupon_code=COALESCE($10,coupon_code), ai_muted=COALESCE($11,ai_muted) WHERE id=$1`,
   [x.id,x.status??null,x.product??null,x.invoice_id??null,x.proof_json??null,
-   x.staff_message_id??null,x.deadline_at??null,x.decided_at??null,x.decision_by??null,x.coupon_code??null]);
+   x.staff_message_id??null,x.deadline_at??null,x.decided_at??null,x.decision_by??null,x.coupon_code??null,x.ai_muted??null]);
 }
 module.exports = {
   ready,
