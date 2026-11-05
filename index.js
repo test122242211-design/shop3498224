@@ -87,7 +87,7 @@ async function createTicketChannel(interaction, kind) {
     topic: `OGSHOP ${kind} ticket for ${interaction.user.tag} (${interaction.user.id})`
   });
   const id = crypto.randomUUID();
-  store.createTicket({
+  await store.createTicket({
     id, guild_id: guild.id, channel_id: channel.id, user_id: interaction.user.id,
     kind, product: null, status: kind === "question" ? "question" : "choose_product",
     created_at: Date.now()
@@ -103,7 +103,7 @@ async function sendAI(channel, ticketId, userText, context = "") {
     console.error("OpenRouter error:", err.message);
     answer = "Thanks for your message. I've had trouble generating a reply just now, but your message is saved and our team can still help.";
   }
-  store.addMessage(ticketId, "assistant", answer);
+  await store.addMessage(ticketId, "assistant", answer);
   await channel.send({ content: answer });
 }
 
@@ -146,7 +146,7 @@ async function notifyStaff(ticket, channel, proofFiles) {
     .setFooter({ text: `Ticket ID: ${ticket.id}` })
     .setTimestamp();
   const sent = await logChannel.send({ embeds: [embed], components: [staffDecisionButtons(ticket.id)] });
-  store.updateTicket({ id: ticket.id, staff_message_id: sent.id });
+  await store.updateTicket({ id: ticket.id, staff_message_id: sent.id });
   return sent;
 }
 
@@ -160,7 +160,7 @@ function isImageOrVideo(attachment) {
 
 async function handleCustomerMessage(message) {
   if (message.author.bot || !message.guild) return;
-  const ticket = store.getByChannel(message.channel.id);
+  const ticket = await store.getByChannel(message.channel.id);
   if (!ticket || ticket.user_id !== message.author.id) return;
   if (["approved", "declined", "auto_approved", "closed"].includes(ticket.status)) return;
 
@@ -225,7 +225,7 @@ async function handleCustomerMessage(message) {
     });
 
     await sendAI(message.channel, ticket.id, text || "Customer submitted evidence.", "The backend detected at least one image/video attachment. Tell the customer their complaint has been sent to staff for review and they should wait. Do not promise approval.");
-    const updated = store.getTicket(ticket.id);
+    const updated = await store.getTicket(ticket.id);
     try {
       await notifyStaff(updated, message.channel, proof);
     } catch (err) {
@@ -247,7 +247,7 @@ async function decideReplacement(interaction, ticketId, decision) {
   if (!isStaff(interaction.member)) {
     return interaction.reply({ content: "You don't have permission to review replacement requests.", ephemeral: true });
   }
-  const ticket = store.getTicket(ticketId);
+  const ticket = await store.getTicket(ticketId);
   if (!ticket || ticket.status !== "awaiting_staff") {
     return interaction.reply({ content: "This ticket is no longer awaiting a staff decision.", ephemeral: true });
   }
@@ -303,7 +303,7 @@ async function updateStaffMessage(interaction, ticket, status, detail) {
 }
 
 async function autoApprove(ticket) {
-  const current = store.getTicket(ticket.id);
+  const current = await store.getTicket(ticket.id);
   if (!current || current.status !== "awaiting_staff" || !current.deadline_at || current.deadline_at > Date.now()) return;
 
   const code = `OGSHOP-${Array.from({ length: 5 }, () => "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[crypto.randomInt(26)]).join("")}`;
@@ -349,7 +349,7 @@ client.once(Events.ClientReady, async readyClient => {
     console.error("Slash command registration failed:", err);
   }
   setInterval(async () => {
-    for (const ticket of store.getPending()) await autoApprove(ticket);
+    for (const ticket of await store.getPending()) await autoApprove(ticket);
   }, 15_000).unref();
 });
 
@@ -368,7 +368,7 @@ client.on(Events.InteractionCreate, async interaction => {
         });
         await interaction.editReply(`Ticket panel posted in <#${panelChannel.id}>: ${panelMessage.url}`);
       } else if (interaction.commandName === "close") {
-        const ticket = store.getByChannel(interaction.channelId);
+        const ticket = await store.getByChannel(interaction.channelId);
         if (!ticket) return interaction.reply({ content: "This is not a ticket channel.", ephemeral: true });
         if (interaction.user.id !== ticket.user_id && !isStaff(interaction.member)) {
           return interaction.reply({ content: "Only the ticket owner or staff can close this ticket.", ephemeral: true });
@@ -406,7 +406,7 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId === "product:select") {
-      const ticket = store.getByChannel(interaction.channelId);
+      const ticket = await store.getByChannel(interaction.channelId);
       if (!ticket || ticket.user_id !== interaction.user.id || ticket.status !== "choose_product") {
         return interaction.reply({ content: "This product menu is no longer active for you.", ephemeral: true });
       }
