@@ -119,7 +119,7 @@ async function createNetflixCoupon(code) {
     discount: 100,
     type: "percentage",
     max_uses: 1,
-    items: [String(config.netflixProductId)]
+    items: [{ product_id: String(config.netflixProductId) }]
   };
 
   const path = route(config.sellAuthCouponCreatePath || "/shops/{shopId}/coupons", {
