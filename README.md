@@ -36,8 +36,8 @@ The bot intentionally refuses to issue a code when SellAuth returns an error. It
 2. Enable the **Message Content Intent** under Bot > Privileged Gateway Intents.
 3. Invite it with scopes `bot` and `applications.commands`.
 4. Bot permissions needed: Manage Channels, View Channels, Send Messages, Read Message History, Embed Links, Attach Files, Use Application Commands.
-5. Create a ticket category, staff role, and private staff-log channel.
-6. Put their IDs into the environment variables.
+5. Create a ticket category and staff role.
+6. Use Discord channel `1567845414160433172` as the staff approval/decline log channel, or set `STAFF_LOG_CHANNEL_ID` in Render to override it.
 
 ## Environment variables
 
