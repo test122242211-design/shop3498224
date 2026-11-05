@@ -79,8 +79,14 @@ async function verifyInvoice(invoiceId) {
   const invoice = unwrap(raw);
   if (!invoice || typeof invoice !== "object") return { found: false };
 
-  const returnedId = invoice.id ?? invoice.invoice_id ?? invoice.identifier;
-  if (returnedId === undefined || String(returnedId).toLowerCase() !== String(invoiceId).toLowerCase()) {
+  // SellAuth accepts either the numeric invoice id or its public unique_id.
+  // Its response includes both fields, so compare against both rather than
+  // rejecting valid IDs that customers copy from their invoice page.
+  const submittedId = String(invoiceId).trim().toLowerCase();
+  const returnedIds = [invoice.id, invoice.invoice_id, invoice.identifier, invoice.unique_id]
+    .filter(value => value !== undefined && value !== null)
+    .map(value => String(value).trim().toLowerCase());
+  if (!returnedIds.includes(submittedId)) {
     return { found: false };
   }
 
