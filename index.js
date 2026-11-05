@@ -196,10 +196,13 @@ async function handleCustomerMessage(message) {
     }
 
     if (!result.found || !result.paid || !result.hasNetflix) {
-      const reason = !result.found ? "No matching invoice was found." :
-        !result.paid ? "The invoice was found but is not marked paid/completed." :
-        "The invoice does not contain the configured Netflix product.";
-      await sendAI(message.channel, ticket.id, text, `${reason} Ask the customer to double-check the invoice ID. Do not say it is verified.`);
+      const rejectionMessage = !result.found
+        ? "❌ We couldn't find that invoice in our OGS​​HOP store logs. Please double-check that the invoice ID is correct and that you've copied the invoice ID (not your order number), then send it again. If you still can't find it, please contact staff."
+        : !result.paid
+          ? "❌ We found that invoice in our store logs, but it isn't marked as paid/completed yet. Please double-check the invoice ID and payment status. If you've paid already, contact staff so we can look into it."
+          : "❌ We found the invoice, but it doesn't appear to contain the Netflix product for this replacement request. Please double-check you're using the correct invoice and contact staff if you think this is a mistake.";
+      await store.addMessage(ticket.id, "assistant", rejectionMessage);
+      await message.channel.send(rejectionMessage);
       return;
     }
 
