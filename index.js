@@ -173,7 +173,7 @@ async function handleCustomerMessage(message) {
   if (message.author.bot || !message.guild) return;
   const ticket = await store.getByChannel(message.channel.id);
   if (!ticket || ticket.user_id !== message.author.id) return;
-  if (["approved", "declined", "auto_approved", "closed"].includes(ticket.status)) return;
+  if (["approved", "declined", "auto_approved", "blacklisted", "closed"].includes(ticket.status)) return;
 
   const text = message.content?.trim() || "";
   await store.addMessage(ticket.id, "user", text || "[attachment]");
@@ -246,6 +246,15 @@ async function handleCustomerMessage(message) {
       const noProofMessage = "I haven't received an image or video attachment yet. Please attach a screenshot or video showing the issue directly to this ticket. Your invoice is verified, but your replacement request cannot be sent to staff until the evidence is attached.";
       await store.addMessage(ticket.id, "assistant", noProofMessage);
       await message.channel.send(noProofMessage);
+      return;
+    }
+
+    const blacklistEntry = await store.getBlacklist(message.author.id);
+    if (blacklistEntry) {
+      await store.updateTicket({ id: ticket.id, status: "blacklisted", decided_at: Date.now() });
+      const flaggedMessage = "You are flagged for abusing Netflix replacements. If you believe this is a mistake, please wait for staff.";
+      await store.addMessage(ticket.id, "assistant", flaggedMessage);
+      await message.channel.send(flaggedMessage);
       return;
     }
 
@@ -414,6 +423,40 @@ client.on(Events.InteractionCreate, async interaction => {
         await store.updateTicket({ id: ticket.id, status: "closed", decided_at: Date.now() });
         await interaction.channel.delete("Ticket closed by ticket owner or staff");
         await interaction.deleteReply().catch(() => {});
+      } else if (interaction.commandName === "blacklist") {
+        if (!hasCommandRole(interaction.member)) {
+          return interaction.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        }
+        const action = interaction.options.getString("action", true);
+        const userId = interaction.options.getString("user_id", true).trim();
+        const reason = interaction.options.getString("reason")?.trim().slice(0, 500) || null;
+        if (!/^\d{17,20}$/.test(userId)) {
+          return interaction.reply({ content: "Please provide a valid Discord user ID using numbers only (not a username or mention).", ephemeral: true });
+        }
+
+        if (action === "add") {
+          await store.addBlacklist(userId, reason, interaction.user.id);
+          return interaction.reply({
+            content: "User ID **" + userId + "** has been added to the Netflix replacement blacklist. This only affects Netflix replacement requests." + (reason ? "\nReason: " + reason : ""),
+            ephemeral: true
+          });
+        }
+        if (action === "remove") {
+          const result = await store.removeBlacklist(userId);
+          return interaction.reply({
+            content: result.rowCount
+              ? "User ID **" + userId + "** has been removed from the Netflix replacement blacklist."
+              : "User ID **" + userId + "** was not on the Netflix replacement blacklist.",
+            ephemeral: true
+          });
+        }
+        const entry = await store.getBlacklist(userId);
+        return interaction.reply({
+          content: entry
+            ? "User ID **" + userId + "** is on the Netflix replacement blacklist." + (entry.reason ? "\nReason: " + entry.reason : "") + "\nAdded <t:" + Math.floor(Number(entry.created_at) / 1000) + ":R>."
+            : "User ID **" + userId + "** is not on the Netflix replacement blacklist.",
+          ephemeral: true
+        });
       } else if (interaction.commandName === "mute" || interaction.commandName === "voucher") {
         if (!hasCommandRole(interaction.member)) {
           return interaction.reply({ content: "You don't have permission to use this command.", ephemeral: true });
@@ -456,6 +499,9 @@ client.on(Events.InteractionCreate, async interaction => {
       if (interaction.customId === "ticket:replacement" || interaction.customId === "ticket:question") {
         const kind = interaction.customId.endsWith("question") ? "question" : "replacement";
         await interaction.deferReply({ ephemeral: true });
+        if (kind === "replacement" && await store.hasOpenNetflixReplacement(interaction.user.id)) {
+          return interaction.editReply("You already have an open Netflix replacement ticket. Please continue in that ticket or close it before opening another one.");
+        }
         const { channel, id } = await createTicketChannel(interaction, kind);
         await interaction.editReply(`Your ticket has been created: ${channel}`);
         if (kind === "question") {
