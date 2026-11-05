@@ -114,7 +114,7 @@ function productSelect() {
       .setPlaceholder("Choose the product")
       .addOptions(
         { label: "Netflix", value: "netflix", description: "Netflix replacement request" },
-        { label: "Other", value: "other", description: "Other product support (no automatic replacement)" }
+        { label: "Other", value: "other", description: "General product support" }
       )
   );
 }
@@ -413,16 +413,16 @@ client.on(Events.InteractionCreate, async interaction => {
       const product = interaction.values[0];
       if (product === "other") {
         store.updateTicket({ id: ticket.id, status: "question", product: "other" });
-        await interaction.reply("Thanks. This will be handled as a normal support question; no automatic replacement coupon is available for this product.");
+        await interaction.reply({ content: "Other selected.", ephemeral: true });
         await interaction.channel.send(`Thanks <@${interaction.user.id}>. Tell us what happened and I'll help you with the next steps.`);
       } else {
         store.updateTicket({ id: ticket.id, status: "awaiting_invoice", product: "netflix" });
-        await interaction.reply("Netflix selected.");
+        await interaction.reply({ content: "Netflix selected.", ephemeral: true });
         await interaction.channel.send("Please send your SellAuth invoice ID so I can check it against the store. Don't send passwords or account credentials.");
       }
     }
   } catch (err) {
-    console.error("Interaction error:", err);
+    console.error("Interaction error:", err?.stack || err);
     const message = "Something went wrong. Please try again or contact staff.";
     if (interaction.deferred || interaction.replied) {
       await interaction.followUp({ content: message, ephemeral: true }).catch(() => {});
