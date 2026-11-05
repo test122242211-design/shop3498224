@@ -165,7 +165,7 @@ async function handleCustomerMessage(message) {
   if (["approved", "declined", "auto_approved", "closed"].includes(ticket.status)) return;
 
   const text = message.content?.trim() || "";
-  store.addMessage(ticket.id, "user", text || "[attachment]");
+  await store.addMessage(ticket.id, "user", text || "[attachment]");
   const attachments = [...message.attachments.values()];
 
   if (ticket.kind === "question" || ticket.product === "other") {
@@ -203,7 +203,7 @@ async function handleCustomerMessage(message) {
       return;
     }
 
-    store.updateTicket({ id: ticket.id, status: "awaiting_proof", invoice_id: invoiceId });
+    await store.updateTicket({ id: ticket.id, status: "awaiting_proof", invoice_id: invoiceId });
     await sendAI(message.channel, ticket.id, text, "Backend verified a paid invoice matching the Netflix product. Ask the customer for a screenshot or video clearly showing the issue.");
     return;
   }
@@ -219,7 +219,7 @@ async function handleCustomerMessage(message) {
       name: a.name, url: a.url, contentType: a.contentType || "unknown", size: a.size
     }));
     const deadline = Date.now() + config.autoApproveMinutes * 60_000;
-    store.updateTicket({
+    await store.updateTicket({
       id: ticket.id, status: "awaiting_staff",
       proof_json: JSON.stringify(proofData), deadline_at: deadline
     });
@@ -263,7 +263,7 @@ async function decideReplacement(interaction, ticketId, decision) {
       return interaction.editReply("SellAuth coupon creation failed. No coupon was issued. Check the SellAuth endpoint/payload configuration and try again.");
     }
 
-    store.updateTicket({
+    await store.updateTicket({
       id: ticket.id, status: "approved", decided_at: Date.now(),
       decision_by: interaction.user.id, coupon_code: code
     });
@@ -275,7 +275,7 @@ async function decideReplacement(interaction, ticketId, decision) {
     return interaction.editReply(`Replacement approved. Coupon created: ${code}`);
   }
 
-  store.updateTicket({
+  await store.updateTicket({
     id: ticket.id, status: "declined", decided_at: Date.now(),
     decision_by: interaction.user.id
   });
@@ -309,7 +309,7 @@ async function autoApprove(ticket) {
   const code = `OGSHOP-${Array.from({ length: 5 }, () => "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[crypto.randomInt(26)]).join("")}`;
   try {
     await createNetflixCoupon(code);
-    store.updateTicket({
+    await store.updateTicket({
       id: current.id, status: "auto_approved", decided_at: Date.now(),
       decision_by: "AUTO_TIMEOUT", coupon_code: code
     });
@@ -373,7 +373,7 @@ client.on(Events.InteractionCreate, async interaction => {
         if (interaction.user.id !== ticket.user_id && !isStaff(interaction.member)) {
           return interaction.reply({ content: "Only the ticket owner or staff can close this ticket.", ephemeral: true });
         }
-        store.updateTicket({ id: ticket.id, status: "closed", decided_at: Date.now() });
+        await store.updateTicket({ id: ticket.id, status: "closed", decided_at: Date.now() });
         await interaction.reply("Ticket closed. Staff can delete this channel when appropriate.");
         await interaction.channel.permissionOverwrites.edit(ticket.user_id, { SendMessages: false });
       }
@@ -412,11 +412,11 @@ client.on(Events.InteractionCreate, async interaction => {
       }
       const product = interaction.values[0];
       if (product === "other") {
-        store.updateTicket({ id: ticket.id, status: "question", product: "other" });
+        await store.updateTicket({ id: ticket.id, status: "question", product: "other" });
         await interaction.reply({ content: "Other selected.", ephemeral: true });
         await interaction.channel.send(`Thanks <@${interaction.user.id}>. Tell us what happened and I'll help you with the next steps.`);
       } else {
-        store.updateTicket({ id: ticket.id, status: "awaiting_invoice", product: "netflix" });
+        await store.updateTicket({ id: ticket.id, status: "awaiting_invoice", product: "netflix" });
         await interaction.reply({ content: "Netflix selected.", ephemeral: true });
         await interaction.channel.send("Please send your OGSHOP invoice ID so I can check it against our store. Don't send passwords or account credentials.");
       }
