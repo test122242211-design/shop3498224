@@ -21,8 +21,7 @@ const commands = [
   new SlashCommandBuilder()
     .setName("voucher")
     .setDescription("Manually create a one-use Netflix voucher in this ticket")
-    .toJSON()
-  ,
+    .toJSON(),
   new SlashCommandBuilder()
     .setName("blacklist")
     .setDescription("Manage the Netflix replacement blacklist")
