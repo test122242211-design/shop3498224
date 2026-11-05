@@ -80,7 +80,7 @@ async function verifyInvoice(invoiceId) {
     raw = await request("GET", path);
   } catch (err) {
     // A missing invoice is a normal validation result, not an API outage.
-    if (err.status === 404) return { found: false };
+    if ([400, 404, 422].includes(err.status)) return { found: false };
     throw err;
   }
   const invoice = unwrap(raw);
