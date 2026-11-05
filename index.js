@@ -274,7 +274,8 @@ async function decideReplacement(interaction, ticketId, decision) {
       await createNetflixCoupon(code);
     } catch (err) {
       console.error("Coupon creation failed:", err.message);
-      return interaction.editReply("SellAuth coupon creation failed. No coupon was issued. Check the SellAuth endpoint/payload configuration and try again.");
+      const detail = String(err.message || "Unknown SellAuth error").slice(0, 1200);
+      return interaction.editReply(`SellAuth coupon creation failed. No coupon was issued. API detail: ${detail}`);
     }
 
     await store.updateTicket({
