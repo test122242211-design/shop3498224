@@ -93,14 +93,18 @@ Set all `.env.example` variables in Render's Environment dashboard. Do not commi
 
 ### PING_URL
 
-If `PING_URL` is set, the process makes an HTTP request to it every 60 seconds. For example:
-`PING_URL=https://your-service.onrender.com/health`
-
-This is best-effort only. Render's Free web services can spin down after 15 minutes without inbound traffic, and Render may suspend services that generate unusually high outbound traffic. A self-ping is not a guaranteed uptime solution; use a paid instance or an external uptime monitor if reliable always-on operation is required.
+The bot requests its health endpoint every 60 seconds. By default it uses Render's `RENDER_EXTERNAL_URL` environment variable and appends `/health`. Set `PING_URL` only if you want to override that destination. This self-ping is best-effort and does **not** guarantee a Render Free service stays awake; use an always-on paid instance if uninterrupted operation is required.
 
 ## Data persistence warning
 
-SQLite is stored at `DATABASE_PATH`. Render Free services have ephemeral filesystems, so ticket state can be lost on restart/redeploy/spin-down. For production, use a persistent disk (paid Render service) or migrate the database to PostgreSQL. A persistent database is important because the one-hour approval timer must survive restarts.
+SQLite is stored at `DATABASE_PATH`. Render's ordinary service filesystem is ephemeral, so ticket state is lost on restart/redeploy unless you attach persistent storage. To keep existing ticket records across restarts:
+
+1. In the Render service, add a **Persistent Disk** (available on supported paid services).
+2. Set its mount path to `/var/data`.
+3. In Render Environment, set `DATABASE_PATH=/var/data/ogshop.sqlite`.
+4. Save and redeploy.
+
+The bot creates the database file in that mounted folder automatically. Important: attaching a disk does not restore ticket data already lost from an earlier ephemeral filesystem; old Discord ticket channels may need to be reopened or re-created in the database. A persistent database is necessary for ticket history and approval timers to survive restarts.
 
 ## Safety / operational notes
 
