@@ -13,6 +13,7 @@ module.exports = {
   ticketCategoryId: process.env.TICKET_CATEGORY_ID || "",
   staffRoleId: process.env.STAFF_ROLE_ID || "",
   staffLogChannelId: process.env.STAFF_LOG_CHANNEL_ID || "1567845414160433172",
+  ticketPanelChannelId: process.env.TICKET_PANEL_CHANNEL_ID || "1567839064848080906",
 
   sellAuthApiKey: process.env.MYSELLAUTHAPI || "",
   sellAuthShopId: process.env.SELLAUTH_SHOP_ID || "",
