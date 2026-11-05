@@ -196,13 +196,12 @@ async function handleCustomerMessage(message) {
     }
 
     if (!result.found || !result.paid || !result.hasNetflix) {
-      const rejectionMessage = !result.found
-        ? "❌ We couldn't find that invoice in our OGS​​HOP store logs. Please double-check that the invoice ID is correct and that you've copied the invoice ID (not your order number), then send it again. If you still can't find it, please contact staff."
+      const verificationContext = !result.found
+        ? "IMPORTANT VERIFIED BACKEND RESULT: The submitted invoice ID was NOT found in the OGS​​HOP SellAuth store logs. Explain this naturally and helpfully. Ask the customer to double-check that they copied the invoice ID, not the order number, and try again. Do not claim the invoice was found, paid, or verified."
         : !result.paid
-          ? "❌ We found that invoice in our store logs, but it isn't marked as paid/completed yet. Please double-check the invoice ID and payment status. If you've paid already, contact staff so we can look into it."
-          : "❌ We found the invoice, but it doesn't appear to contain the Netflix product for this replacement request. Please double-check you're using the correct invoice and contact staff if you think this is a mistake.";
-      await store.addMessage(ticket.id, "assistant", rejectionMessage);
-      await message.channel.send(rejectionMessage);
+          ? "IMPORTANT VERIFIED BACKEND RESULT: The invoice exists in OGS​​HOP SellAuth, but it is NOT marked paid/completed. Explain this naturally and ask them to check payment status or contact staff if they already paid. Do not claim it is paid or verified."
+          : "IMPORTANT VERIFIED BACKEND RESULT: The invoice exists, but it does NOT contain the Netflix product required for this replacement request. Explain this naturally and ask them to check the invoice or contact staff. Do not claim the product matches.";
+      await sendAI(message.channel, ticket.id, text, verificationContext);
       return;
     }
 
