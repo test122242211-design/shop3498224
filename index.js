@@ -222,6 +222,16 @@ async function handleCustomerMessage(message) {
   if (ticket.status === "awaiting_proof") {
     const proof = attachments.filter(isImageOrVideo);
     if (proof.length === 0) {
+      // If the customer repeats the already-verified invoice ID as text, don't
+      // mistake it for an evidence submission. Reconfirm the verified state and
+      // ask for the required screenshot/video using the AI support voice.
+      const verifiedInvoiceId = String(ticket.invoice_id || "").trim().toLowerCase();
+      if (verifiedInvoiceId && text.toLowerCase().includes(verifiedInvoiceId)) {
+        const repeatInvoiceContext = "IMPORTANT VERIFIED BACKEND RESULT: This ticket's invoice has already been successfully verified as found, paid/completed, and containing the Netflix product. The customer has repeated the same invoice ID but has NOT attached evidence in this message. Naturally reassure them that the invoice is already verified and ask them to attach a screenshot or video showing the issue directly to this ticket. Do not verify or reject the invoice again, do not ask for the invoice ID again, and do not claim evidence has been received or promise approval.";
+        await sendAI(message.channel, ticket.id, text, repeatInvoiceContext);
+        return;
+      }
+
       const noProofMessage = "I haven't received an image or video attachment yet. Please attach a screenshot or video showing the issue directly to this ticket. Your invoice is verified, but your replacement request cannot be sent to staff until the evidence is attached.";
       await store.addMessage(ticket.id, "assistant", noProofMessage);
       await message.channel.send(noProofMessage);
