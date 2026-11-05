@@ -45,6 +45,7 @@ const stmts = {
   getByChannel: db.prepare("SELECT * FROM tickets WHERE channel_id = ?"),
   update: db.prepare(`UPDATE tickets SET
     status=COALESCE(@status,status),
+    product=COALESCE(@product,product),
     invoice_id=COALESCE(@invoice_id,invoice_id),
     proof_json=COALESCE(@proof_json,proof_json),
     staff_message_id=COALESCE(@staff_message_id,staff_message_id),
