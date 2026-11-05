@@ -75,7 +75,14 @@ async function verifyInvoice(invoiceId) {
     shopId: config.sellAuthShopId,
     invoiceId
   });
-  const raw = await request("GET", path);
+  let raw;
+  try {
+    raw = await request("GET", path);
+  } catch (err) {
+    // A missing invoice is a normal validation result, not an API outage.
+    if (err.status === 404) return { found: false };
+    throw err;
+  }
   const invoice = unwrap(raw);
   if (!invoice || typeof invoice !== "object") return { found: false };
 
