@@ -2,12 +2,7 @@ const config = require("./config");
 
 /*
  * SellAuth API v1.
- * Routes and coupon payload are based on the SellAuth API wrapper implementation:
- * GET  /shops/{shopId}/invoices/{invoiceId}
- * POST /shops/{shopId}/coupons
- *
- * The official API dashboard is account-authenticated; verify your account's
- * API permissions and response fields before enabling automatic coupon issuance.
+ * Coupon endpoint: POST /v1/shops/{shopId}/coupons
  */
 
 function route(template, values = {}) {
@@ -21,11 +16,21 @@ function route(template, values = {}) {
   });
 }
 
+function apiBase() {
+  const base = String(config.sellAuthApiBase || "https://api.sellauth.com").replace(/\/+$/, "");
+  return /\/v1$/i.test(base) ? base : `${base}/v1`;
+}
+
 async function request(method, path, body) {
   if (!config.sellAuthApiKey || !config.sellAuthShopId) {
     throw new Error("Set MYSELLAUTHAPI and SELLAUTH_SHOP_ID.");
   }
-  const res = await fetch(`${config.sellAuthApiBase}${path}`, {
+  if (!/^\d+$/.test(String(config.sellAuthShopId))) {
+    throw new Error("SELLAUTH_SHOP_ID must be the numeric shop ID from SellAuth.");
+  }
+
+  const url = `${apiBase()}${path.startsWith("/") ? path : `/${path}`}`;
+  const res = await fetch(url, {
     method,
     headers: {
       "Authorization": `Bearer ${config.sellAuthApiKey}`,
@@ -35,11 +40,15 @@ async function request(method, path, body) {
     ...(body ? { body: JSON.stringify(body) } : {}),
     signal: AbortSignal.timeout(20000)
   });
+
   const raw = await res.text();
   let data;
   try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw }; }
   if (!res.ok) {
-    const err = new Error(`SellAuth API ${method} ${path} returned ${res.status}: ${raw.slice(0, 500)}`);
+    const detail = typeof data?.message === "string" ? data.message
+      : typeof data?.error === "string" ? data.error
+      : raw;
+    const err = new Error(`SellAuth API returned HTTP ${res.status}: ${String(detail || "No error details returned").slice(0, 700)}`);
     err.status = res.status;
     throw err;
   }
@@ -55,7 +64,6 @@ function invoiceStatus(invoice) {
 }
 
 function isPaidInvoice(invoice) {
-  // SellAuth invoice list examples use "completed" for paid orders.
   return ["paid", "completed", "complete", "succeeded", "success"].includes(invoiceStatus(invoice)) ||
     invoice?.paid === true || invoice?.is_paid === true;
 }
@@ -79,23 +87,17 @@ async function verifyInvoice(invoiceId) {
   try {
     raw = await request("GET", path);
   } catch (err) {
-    // A missing invoice is a normal validation result, not an API outage.
     if ([400, 404, 422].includes(err.status)) return { found: false };
     throw err;
   }
   const invoice = unwrap(raw);
   if (!invoice || typeof invoice !== "object") return { found: false };
 
-  // SellAuth accepts either the numeric invoice id or its public unique_id.
-  // Its response includes both fields, so compare against both rather than
-  // rejecting valid IDs that customers copy from their invoice page.
   const submittedId = String(invoiceId).trim().toLowerCase();
   const returnedIds = [invoice.id, invoice.invoice_id, invoice.identifier, invoice.unique_id]
     .filter(value => value !== undefined && value !== null)
     .map(value => String(value).trim().toLowerCase());
-  if (!returnedIds.includes(submittedId)) {
-    return { found: false };
-  }
+  if (!returnedIds.includes(submittedId)) return { found: false };
 
   return {
     found: true,
@@ -106,21 +108,23 @@ async function verifyInvoice(invoiceId) {
 }
 
 async function createNetflixCoupon(code) {
-  if (!config.netflixProductId) throw new Error("Set NETFLIX_PRODUCT_ID.");
+  if (!config.netflixProductId) throw new Error("Set NETFLIX_PRODUCT_ID to the SellAuth Netflix product ID.");
+  if (!code || typeof code !== "string") throw new Error("A coupon code is required.");
 
-  // SellAuth coupon create schema shown in a public API wrapper:
-  // code, discount, type, global, items, max_uses, expiration_date, allowed_emails.
-  // global:false + items:[Netflix product ID] restricts the coupon to that product.
+  // Matches SellAuth's documented POST /v1/shops/{shopId}/coupons schema.
+  // A non-global coupon must include the product ID in items.
   const payload = {
     code,
+    global: false,
     discount: 100,
     type: "percentage",
-    global: false,
-    items: [String(config.netflixProductId)],
-    max_uses: 1
+    max_uses: 1,
+    items: [String(config.netflixProductId)]
   };
 
-  const path = route(config.sellAuthCouponCreatePath, { shopId: config.sellAuthShopId });
+  const path = route(config.sellAuthCouponCreatePath || "/shops/{shopId}/coupons", {
+    shopId: config.sellAuthShopId
+  });
   return request("POST", path, payload);
 }
 
