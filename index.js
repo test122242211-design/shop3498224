@@ -238,7 +238,9 @@ async function handleCustomerMessage(message) {
       proof_json: JSON.stringify(proofData), deadline_at: deadline
     });
 
-    await sendAI(message.channel, ticket.id, text || "Customer submitted evidence.", "The backend detected at least one image/video attachment. Tell the customer their complaint has been sent to staff for review and they should wait. Do not promise approval.");
+    const evidenceReceivedMessage = "Thank you for submitting the evidence. Our team is now reviewing your case. You can expect an update within the next 2 hours regarding your replacement request. If you have any further questions or concerns, feel free to ask.";
+    await store.addMessage(ticket.id, "assistant", evidenceReceivedMessage);
+    await message.channel.send(evidenceReceivedMessage);
     const updated = await store.getTicket(ticket.id);
     try {
       await notifyStaff(updated, message.channel, proof);
