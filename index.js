@@ -87,7 +87,7 @@ async function createTicketChannel(interaction, kind) {
     topic: `OGSHOP ${kind} ticket for ${interaction.user.tag} (${interaction.user.id})`
   });
   const id = crypto.randomUUID();
-  store.createTicket({
+  await store.createTicket({
     id, guild_id: guild.id, channel_id: channel.id, user_id: interaction.user.id,
     kind, product: null, status: kind === "question" ? "question" : "choose_product",
     created_at: Date.now()
@@ -103,7 +103,7 @@ async function sendAI(channel, ticketId, userText, context = "") {
     console.error("OpenRouter error:", err.message);
     answer = "Thanks for your message. I've had trouble generating a reply just now, but your message is saved and our team can still help.";
   }
-  store.addMessage(ticketId, "assistant", answer);
+  await store.addMessage(ticketId, "assistant", answer);
   await channel.send({ content: answer });
 }
 
@@ -146,7 +146,7 @@ async function notifyStaff(ticket, channel, proofFiles) {
     .setFooter({ text: `Ticket ID: ${ticket.id}` })
     .setTimestamp();
   const sent = await logChannel.send({ embeds: [embed], components: [staffDecisionButtons(ticket.id)] });
-  store.updateTicket({ id: ticket.id, staff_message_id: sent.id });
+  await store.updateTicket({ id: ticket.id, staff_message_id: sent.id });
   return sent;
 }
 
@@ -160,12 +160,12 @@ function isImageOrVideo(attachment) {
 
 async function handleCustomerMessage(message) {
   if (message.author.bot || !message.guild) return;
-  const ticket = store.getByChannel(message.channel.id);
+  const ticket = await store.getByChannel(message.channel.id);
   if (!ticket || ticket.user_id !== message.author.id) return;
   if (["approved", "declined", "auto_approved", "closed"].includes(ticket.status)) return;
 
   const text = message.content?.trim() || "";
-  store.addMessage(ticket.id, "user", text || "[attachment]");
+  await store.addMessage(ticket.id, "user", text || "[attachment]");
   const attachments = [...message.attachments.values()];
 
   if (ticket.kind === "question" || ticket.product === "other") {
@@ -196,22 +196,29 @@ async function handleCustomerMessage(message) {
     }
 
     if (!result.found || !result.paid || !result.hasNetflix) {
-      const reason = !result.found ? "No matching invoice was found." :
-        !result.paid ? "The invoice was found but is not marked paid/completed." :
-        "The invoice does not contain the configured Netflix product.";
-      await sendAI(message.channel, ticket.id, text, `${reason} Ask the customer to double-check the invoice ID. Do not say it is verified.`);
+      const rejectionMessage = !result.found
+        ? "❌ We couldn't find that invoice in our OGS​​HOP store logs. Please double-check that the invoice ID is correct and that you've copied the invoice ID (not your order number), then send it again. If you still can't find it, please contact staff."
+        : !result.paid
+          ? "❌ We found that invoice in our store logs, but it isn't marked as paid/completed yet. Please double-check the invoice ID and payment status. If you've paid already, contact staff so we can look into it."
+          : "❌ We found the invoice, but it doesn't appear to contain the Netflix product for this replacement request. Please double-check you're using the correct invoice and contact staff if you think this is a mistake.";
+      await store.addMessage(ticket.id, "assistant", rejectionMessage);
+      await message.channel.send(rejectionMessage);
       return;
     }
 
-    store.updateTicket({ id: ticket.id, status: "awaiting_proof", invoice_id: invoiceId });
-    await sendAI(message.channel, ticket.id, text, "Backend verified a paid invoice matching the Netflix product. Ask the customer for a screenshot or video clearly showing the issue.");
+    await store.updateTicket({ id: ticket.id, status: "awaiting_proof", invoice_id: invoiceId });
+    const verifiedMessage = "✅ Your invoice has been found in our OGS​​HOP store logs and verified as paid for the Netflix product. Now please upload a screenshot or video showing the issue with your order. We can only review evidence that is actually attached to this ticket.";
+    await store.addMessage(ticket.id, "assistant", verifiedMessage);
+    await message.channel.send(verifiedMessage);
     return;
   }
 
   if (ticket.status === "awaiting_proof") {
     const proof = attachments.filter(isImageOrVideo);
     if (proof.length === 0) {
-      await sendAI(message.channel, ticket.id, text || "No valid evidence attachment was included.", "The customer must upload at least one image or video attachment. Text alone is not proof. Ask them to attach a screenshot or video.");
+      const noProofMessage = "I haven't received an image or video attachment yet. Please attach a screenshot or video showing the issue directly to this ticket. Your invoice is verified, but your replacement request cannot be sent to staff until the evidence is attached.";
+      await store.addMessage(ticket.id, "assistant", noProofMessage);
+      await message.channel.send(noProofMessage);
       return;
     }
 
@@ -219,13 +226,13 @@ async function handleCustomerMessage(message) {
       name: a.name, url: a.url, contentType: a.contentType || "unknown", size: a.size
     }));
     const deadline = Date.now() + config.autoApproveMinutes * 60_000;
-    store.updateTicket({
+    await store.updateTicket({
       id: ticket.id, status: "awaiting_staff",
       proof_json: JSON.stringify(proofData), deadline_at: deadline
     });
 
     await sendAI(message.channel, ticket.id, text || "Customer submitted evidence.", "The backend detected at least one image/video attachment. Tell the customer their complaint has been sent to staff for review and they should wait. Do not promise approval.");
-    const updated = store.getTicket(ticket.id);
+    const updated = await store.getTicket(ticket.id);
     try {
       await notifyStaff(updated, message.channel, proof);
     } catch (err) {
@@ -247,7 +254,7 @@ async function decideReplacement(interaction, ticketId, decision) {
   if (!isStaff(interaction.member)) {
     return interaction.reply({ content: "You don't have permission to review replacement requests.", ephemeral: true });
   }
-  const ticket = store.getTicket(ticketId);
+  const ticket = await store.getTicket(ticketId);
   if (!ticket || ticket.status !== "awaiting_staff") {
     return interaction.reply({ content: "This ticket is no longer awaiting a staff decision.", ephemeral: true });
   }
@@ -263,7 +270,7 @@ async function decideReplacement(interaction, ticketId, decision) {
       return interaction.editReply("SellAuth coupon creation failed. No coupon was issued. Check the SellAuth endpoint/payload configuration and try again.");
     }
 
-    store.updateTicket({
+    await store.updateTicket({
       id: ticket.id, status: "approved", decided_at: Date.now(),
       decision_by: interaction.user.id, coupon_code: code
     });
@@ -275,7 +282,7 @@ async function decideReplacement(interaction, ticketId, decision) {
     return interaction.editReply(`Replacement approved. Coupon created: ${code}`);
   }
 
-  store.updateTicket({
+  await store.updateTicket({
     id: ticket.id, status: "declined", decided_at: Date.now(),
     decision_by: interaction.user.id
   });
@@ -303,13 +310,13 @@ async function updateStaffMessage(interaction, ticket, status, detail) {
 }
 
 async function autoApprove(ticket) {
-  const current = store.getTicket(ticket.id);
+  const current = await store.getTicket(ticket.id);
   if (!current || current.status !== "awaiting_staff" || !current.deadline_at || current.deadline_at > Date.now()) return;
 
   const code = `OGSHOP-${Array.from({ length: 5 }, () => "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[crypto.randomInt(26)]).join("")}`;
   try {
     await createNetflixCoupon(code);
-    store.updateTicket({
+    await store.updateTicket({
       id: current.id, status: "auto_approved", decided_at: Date.now(),
       decision_by: "AUTO_TIMEOUT", coupon_code: code
     });
@@ -349,7 +356,7 @@ client.once(Events.ClientReady, async readyClient => {
     console.error("Slash command registration failed:", err);
   }
   setInterval(async () => {
-    for (const ticket of store.getPending()) await autoApprove(ticket);
+    for (const ticket of await store.getPending()) await autoApprove(ticket);
   }, 15_000).unref();
 });
 
@@ -368,12 +375,12 @@ client.on(Events.InteractionCreate, async interaction => {
         });
         await interaction.editReply(`Ticket panel posted in <#${panelChannel.id}>: ${panelMessage.url}`);
       } else if (interaction.commandName === "close") {
-        const ticket = store.getByChannel(interaction.channelId);
+        const ticket = await store.getByChannel(interaction.channelId);
         if (!ticket) return interaction.reply({ content: "This is not a ticket channel.", ephemeral: true });
         if (interaction.user.id !== ticket.user_id && !isStaff(interaction.member)) {
           return interaction.reply({ content: "Only the ticket owner or staff can close this ticket.", ephemeral: true });
         }
-        store.updateTicket({ id: ticket.id, status: "closed", decided_at: Date.now() });
+        await store.updateTicket({ id: ticket.id, status: "closed", decided_at: Date.now() });
         await interaction.reply("Ticket closed. Staff can delete this channel when appropriate.");
         await interaction.channel.permissionOverwrites.edit(ticket.user_id, { SendMessages: false });
       }
@@ -406,17 +413,17 @@ client.on(Events.InteractionCreate, async interaction => {
     }
 
     if (interaction.isStringSelectMenu() && interaction.customId === "product:select") {
-      const ticket = store.getByChannel(interaction.channelId);
+      const ticket = await store.getByChannel(interaction.channelId);
       if (!ticket || ticket.user_id !== interaction.user.id || ticket.status !== "choose_product") {
         return interaction.reply({ content: "This product menu is no longer active for you.", ephemeral: true });
       }
       const product = interaction.values[0];
       if (product === "other") {
-        store.updateTicket({ id: ticket.id, status: "question", product: "other" });
+        await store.updateTicket({ id: ticket.id, status: "question", product: "other" });
         await interaction.reply({ content: "Other selected.", ephemeral: true });
         await interaction.channel.send(`Thanks <@${interaction.user.id}>. Tell us what happened and I'll help you with the next steps.`);
       } else {
-        store.updateTicket({ id: ticket.id, status: "awaiting_invoice", product: "netflix" });
+        await store.updateTicket({ id: ticket.id, status: "awaiting_invoice", product: "netflix" });
         await interaction.reply({ content: "Netflix selected.", ephemeral: true });
         await interaction.channel.send("Please send your OGSHOP invoice ID so I can check it against our store. Don't send passwords or account credentials.");
       }

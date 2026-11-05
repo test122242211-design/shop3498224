@@ -23,7 +23,7 @@ async function generateReply(ticketId, userText, context = "") {
     return "Thanks for your message. Our support team will help you shortly.";
   }
 
-  const history = store.getHistory(ticketId, config.aiMaxHistory)
+  const history = await store.getHistory(ticketId, config.aiMaxHistory)
     .map(m => ({ role: m.role, content: m.content }));
 
   const messages = [
