@@ -191,7 +191,7 @@ async function handleCustomerMessage(message) {
       result = await verifyInvoice(invoiceId);
     } catch (err) {
       console.error("SellAuth invoice verification error:", err.message);
-      await message.channel.send("I'm unable to check the invoice with SellAuth right now. Please try again in a moment; staff have not marked it as verified.");
+      await message.channel.send("OGSHOP is unable to check your invoice right now. Please try again in a moment; staff have not marked it as verified.");
       return;
     }
 
@@ -418,7 +418,7 @@ client.on(Events.InteractionCreate, async interaction => {
       } else {
         store.updateTicket({ id: ticket.id, status: "awaiting_invoice", product: "netflix" });
         await interaction.reply({ content: "Netflix selected.", ephemeral: true });
-        await interaction.channel.send("Please send your SellAuth invoice ID so I can check it against the store. Don't send passwords or account credentials.");
+        await interaction.channel.send("Please send your OGSHOP invoice ID so I can check it against our store. Don't send passwords or account credentials.");
       }
     }
   } catch (err) {
