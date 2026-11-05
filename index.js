@@ -11,6 +11,12 @@ const store = require("./db");
 const { generateReply } = require("./ai");
 const { verifyInvoice, createNetflixCoupon } = require("./sellauth");
 
+const COMMAND_ROLE_ID = "1567889731851911250";
+
+function hasCommandRole(member) {
+  return Boolean(member?.roles?.cache?.has(COMMAND_ROLE_ID));
+}
+
 const client = new Client({
   intents: [
     GatewayIntentBits.Guilds,
@@ -96,6 +102,11 @@ async function createTicketChannel(interaction, kind) {
 }
 
 async function sendAI(channel, ticketId, userText, context = "") {
+  const ticket = await store.getTicket(ticketId);
+  if (ticket?.ai_muted) {
+    console.log(`[AI MUTED] Skipping AI reply in ticket ${ticketId}`);
+    return;
+  }
   let answer;
   try {
     answer = await generateReply(ticketId, userText, context);
@@ -403,6 +414,40 @@ client.on(Events.InteractionCreate, async interaction => {
         await store.updateTicket({ id: ticket.id, status: "closed", decided_at: Date.now() });
         await interaction.channel.delete("Ticket closed by ticket owner or staff");
         await interaction.deleteReply().catch(() => {});
+      } else if (interaction.commandName === "mute" || interaction.commandName === "voucher") {
+        if (!hasCommandRole(interaction.member)) {
+          return interaction.reply({ content: "You don't have permission to use this command.", ephemeral: true });
+        }
+        const ticket = await store.getByChannel(interaction.channelId);
+        if (!ticket) {
+          return interaction.reply({ content: "This command can only be used inside a support ticket.", ephemeral: true });
+        }
+
+        if (interaction.commandName === "mute") {
+          const enabled = interaction.options.getBoolean("enabled", true);
+          await store.updateTicket({ id: ticket.id, ai_muted: enabled });
+          return interaction.reply({
+            content: enabled
+              ? "AI replies are now muted in this ticket. Use /mute enabled:false to turn them back on."
+              : "AI replies are now enabled again in this ticket.",
+            ephemeral: true
+          });
+        }
+
+        await interaction.deferReply({ ephemeral: true });
+        const code = `OGSHOP-${Array.from({ length: 5 }, () => "ABCDEFGHIJKLMNOPQRSTUVWXYZ"[crypto.randomInt(26)]).join("")}`;
+        try {
+          await createNetflixCoupon(code);
+        } catch (err) {
+          console.error("Manual voucher creation failed:", err.message);
+          const detail = String(err.message || "Unknown SellAuth error").slice(0, 1000);
+          return interaction.editReply(`SellAuth could not create the Netflix voucher. No code was issued. API detail: ${detail}`);
+        }
+        await store.updateTicket({ id: ticket.id, coupon_code: code });
+        await interaction.channel.send(
+          `A Netflix voucher has been manually created by <@${interaction.user.id}>: **${code}**\nThis is a one-use code restricted to the Netflix product.`
+        );
+        return interaction.editReply(`Netflix voucher created successfully: **${code}**`);
       }
       return;
     }
