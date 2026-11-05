@@ -28,7 +28,7 @@ module.exports = {
   openRouterAppName: process.env.OPENROUTER_APP_NAME || "OGSHOP Support",
 
   port: Number(process.env.PORT || 10000),
-  pingUrl: process.env.PING_URL || "",
+  pingUrl: process.env.PING_URL || (process.env.RENDER_EXTERNAL_URL ? `${process.env.RENDER_EXTERNAL_URL.replace(/\/$/, "")}/health` : ""),
   autoApproveMinutes: Math.max(1, Number(process.env.AUTO_APPROVE_MINUTES || 60)),
   databasePath: process.env.DATABASE_PATH || "./data/ogshop.sqlite",
   aiMaxHistory: Math.max(2, Number(process.env.AI_MAX_HISTORY || 12))
