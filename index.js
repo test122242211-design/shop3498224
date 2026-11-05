@@ -344,10 +344,16 @@ client.on(Events.InteractionCreate, async interaction => {
   try {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "setup") {
-        await interaction.reply({
+        await interaction.deferReply({ ephemeral: true });
+        const panelChannel = await client.channels.fetch(config.ticketPanelChannelId);
+        if (!panelChannel?.isTextBased() || !panelChannel.guild || panelChannel.guild.id !== interaction.guildId) {
+          return interaction.editReply("The configured ticket panel channel is unavailable or is not a text channel in this server. Check TICKET_PANEL_CHANNEL_ID and the bot's channel permissions.");
+        }
+        const panelMessage = await panelChannel.send({
           content: "**OGSHOP SUPPORT**\nChoose the type of support you need below.",
           components: panelComponents()
         });
+        await interaction.editReply(`Ticket panel posted in <#${panelChannel.id}>: ${panelMessage.url}`);
       } else if (interaction.commandName === "close") {
         const ticket = store.getByChannel(interaction.channelId);
         if (!ticket) return interaction.reply({ content: "This is not a ticket channel.", ephemeral: true });
