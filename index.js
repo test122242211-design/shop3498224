@@ -352,7 +352,7 @@ async function autoApprove(ticket) {
     });
     const channel = await client.channels.fetch(current.channel_id).catch(() => null);
     if (channel) {
-      await channel.send(`Your Netflix replacement request was automatically approved because staff did not respond within ${config.autoApproveMinutes} minutes. Your one-time replacement code is **${code}**. It is restricted to Netflix.`);
+      await channel.send(`Good news! Your Netflix replacement request has been approved. Your one-time replacement code is **${code}**. It is restricted to Netflix.`);
     }
     const log = await client.channels.fetch(config.staffLogChannelId).catch(() => null);
     if (log && current.staff_message_id) {
