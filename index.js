@@ -214,9 +214,8 @@ async function handleCustomerMessage(message) {
     }
 
     await store.updateTicket({ id: ticket.id, status: "awaiting_proof", invoice_id: invoiceId });
-    const verifiedMessage = "✅ Your invoice has been found in our OGS​​HOP store logs and verified as paid for the Netflix product. Now please upload a screenshot or video showing the issue with your order. We can only review evidence that is actually attached to this ticket.";
-    await store.addMessage(ticket.id, "assistant", verifiedMessage);
-    await message.channel.send(verifiedMessage);
+    const verifiedContext = "IMPORTANT VERIFIED BACKEND RESULT: The SellAuth backend has confirmed that this invoice exists, is paid/completed, and includes the Netflix product. Reply naturally in your own words: thank the customer for providing the invoice, confirm it has been verified, and ask them to attach a screenshot or video showing the issue with their order. Make clear that the evidence must be attached directly to this ticket. Do not ask for the invoice ID again, do not claim evidence has already been received, and do not promise approval.";
+    await sendAI(message.channel, ticket.id, text || "The customer provided their invoice ID.", verifiedContext);
     return;
   }
 
