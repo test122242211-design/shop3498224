@@ -379,9 +379,10 @@ client.on(Events.InteractionCreate, async interaction => {
         if (interaction.user.id !== ticket.user_id && !isStaff(interaction.member)) {
           return interaction.reply({ content: "Only the ticket owner or staff can close this ticket.", ephemeral: true });
         }
+        await interaction.deferReply({ ephemeral: true });
         await store.updateTicket({ id: ticket.id, status: "closed", decided_at: Date.now() });
-        await interaction.reply("Ticket closed. Staff can delete this channel when appropriate.");
-        await interaction.channel.permissionOverwrites.edit(ticket.user_id, { SendMessages: false });
+        await interaction.channel.delete("Ticket closed by ticket owner or staff");
+        await interaction.deleteReply().catch(() => {});
       }
       return;
     }
