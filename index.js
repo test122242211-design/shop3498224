@@ -207,14 +207,18 @@ async function handleCustomerMessage(message) {
     }
 
     await store.updateTicket({ id: ticket.id, status: "awaiting_proof", invoice_id: invoiceId });
-    await sendAI(message.channel, ticket.id, text, "Backend verified a paid invoice matching the Netflix product. Ask the customer for a screenshot or video clearly showing the issue.");
+    const verifiedMessage = "✅ Your invoice has been found in our OGS​​HOP store logs and verified as paid for the Netflix product. Now please upload a screenshot or video showing the issue with your order. We can only review evidence that is actually attached to this ticket.";
+    await store.addMessage(ticket.id, "assistant", verifiedMessage);
+    await message.channel.send(verifiedMessage);
     return;
   }
 
   if (ticket.status === "awaiting_proof") {
     const proof = attachments.filter(isImageOrVideo);
     if (proof.length === 0) {
-      await sendAI(message.channel, ticket.id, text || "No valid evidence attachment was included.", "The customer must upload at least one image or video attachment. Text alone is not proof. Ask them to attach a screenshot or video.");
+      const noProofMessage = "I haven't received an image or video attachment yet. Please attach a screenshot or video showing the issue directly to this ticket. Your invoice is verified, but your replacement request cannot be sent to staff until the evidence is attached.";
+      await store.addMessage(ticket.id, "assistant", noProofMessage);
+      await message.channel.send(noProofMessage);
       return;
     }
 
